@@ -12,6 +12,8 @@ pub enum Error {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
+    #[error("no auth provider found")]
+    NoAuthProvider,
 }
 
 async fn check_response(response: reqwest::Response) -> Result<reqwest::Response, reqwest::Error> {
