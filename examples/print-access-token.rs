@@ -7,7 +7,9 @@ async fn main() -> anyhow::Result<()> {
     let client = reqwest::Client::new();
     let credentials =
         Credentials::from_env()?.ok_or_else(|| anyhow::format_err!("no credentials found"))?;
-    let token = credentials.refresh(&client, &[]).await?;
+    let token = credentials
+        .refresh(&client, &["https://www.googleapis.com/auth/cloud-platform"])
+        .await?;
     println!("{}", token.access_token);
 
     Ok(())
