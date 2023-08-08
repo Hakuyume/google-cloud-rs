@@ -21,7 +21,7 @@ async fn check_response(response: reqwest::Response) -> Result<reqwest::Response
         tracing::error!(
             "status = {}, body = {:?}",
             response.status(),
-            response.bytes().await?
+            response.text().await?
         );
         Err(e)
     } else {
