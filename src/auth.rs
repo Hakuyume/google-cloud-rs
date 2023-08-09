@@ -8,6 +8,8 @@ use std::fmt;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+pub const DEFAULT_SCOPES: &[&str] = &["https://www.googleapis.com/auth/cloud-platform"];
+
 #[derive(Clone, Deserialize)]
 pub struct Token {
     pub access_token: String,

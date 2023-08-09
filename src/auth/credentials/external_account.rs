@@ -68,10 +68,11 @@ impl ExternalAccount {
                         requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
                         subject_token_type: &self.subject_token_type,
                         scope: if self.service_account_impersonation_url.is_some() {
-                            vec!["https://www.googleapis.com/auth/cloud-platform"]
+                            super::super::DEFAULT_SCOPES
                         } else {
-                            scopes.into()
-                        },
+                            scopes
+                        }
+                        .into(),
                         subject_token: &external_credential,
                     })
                     .send()
