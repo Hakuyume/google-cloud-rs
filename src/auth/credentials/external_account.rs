@@ -59,7 +59,7 @@ impl ExternalAccount {
                 expires_in: i64,
             }
 
-            crate::check_response(
+            Error::check_response(
                 client
                     .post(&self.token_url)
                     .json(&Request {
@@ -103,7 +103,7 @@ impl ExternalAccount {
                     expire_time: DateTime<Utc>,
                 }
 
-                crate::check_response(
+                Error::check_response(
                     client
                         .post(service_account_impersonation_url)
                         .bearer_auth(&response.access_token)

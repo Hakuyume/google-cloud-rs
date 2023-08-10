@@ -1,5 +1,6 @@
 pub mod auth;
 
+use bytes::Bytes;
 use std::io;
 
 const SENSITIVE: &str = "***";
@@ -12,19 +13,25 @@ pub enum Error {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
+
+    #[error("[{status:?}] {body:?}")]
+    Http {
+        status: reqwest::StatusCode,
+        body: Bytes,
+    },
     #[error("no auth provider found")]
     NoAuthProvider,
 }
 
-async fn check_response(response: reqwest::Response) -> Result<reqwest::Response, reqwest::Error> {
-    if let Err(e) = response.error_for_status_ref() {
-        tracing::error!(
-            "status = {}, body = {:?}",
-            response.status(),
-            response.text().await?
-        );
-        Err(e)
-    } else {
-        Ok(response)
+impl Error {
+    async fn check_response(response: reqwest::Response) -> Result<reqwest::Response, Self> {
+        if response.status().is_success() {
+            Ok(response)
+        } else {
+            Err(Self::Http {
+                status: response.status(),
+                body: response.bytes().await?,
+            })
+        }
     }
 }

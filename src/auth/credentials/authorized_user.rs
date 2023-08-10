@@ -47,7 +47,7 @@ impl AuthorizedUser {
                 expires_in: i64,
             }
 
-            crate::check_response(
+            Error::check_response(
                 client
                     .post("https://oauth2.googleapis.com/token")
                     .json(&Request {
