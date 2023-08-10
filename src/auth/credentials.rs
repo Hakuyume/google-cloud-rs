@@ -15,7 +15,7 @@ pub enum Credentials {
 }
 
 impl Credentials {
-    #[tracing::instrument]
+    #[tracing::instrument(err, ret)]
     pub fn from_env() -> Result<Option<Self>, Error> {
         if let Ok(path) = env::var("GOOGLE_APPLICATION_CREDENTIALS") {
             tracing::debug!("loading credentials from {}", path);
@@ -26,7 +26,7 @@ impl Credentials {
         }
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(err, ret, skip(client))]
     pub async fn refresh(&self, client: &reqwest::Client, scopes: &[&str]) -> Result<Token, Error> {
         match &self {
             Self::AuthorizedUser(credentials) => credentials.refresh(client, scopes).await,

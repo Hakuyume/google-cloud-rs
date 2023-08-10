@@ -30,7 +30,7 @@ pub struct File {
 }
 
 impl ExternalAccount {
-    #[tracing::instrument]
+    #[tracing::instrument(err, ret, skip(client))]
     pub async fn refresh(&self, client: &reqwest::Client, scopes: &[&str]) -> Result<Token, Error> {
         let external_credential = match &self.credential_source {
             CredentialSource::File(source) => fs::read_to_string(&source.file).await?,

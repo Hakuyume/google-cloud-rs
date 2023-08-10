@@ -26,7 +26,7 @@ impl fmt::Debug for AuthorizedUser {
 }
 
 impl AuthorizedUser {
-    #[tracing::instrument]
+    #[tracing::instrument(err, ret, skip(client))]
     pub async fn refresh(&self, client: &reqwest::Client, scopes: &[&str]) -> Result<Token, Error> {
         let now = Utc::now();
         let response = {

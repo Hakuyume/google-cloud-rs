@@ -12,6 +12,7 @@ impl Cache {
         Self::default()
     }
 
+    #[tracing::instrument(ret, skip(self))]
     pub fn get(&self, scopes: &[&str], lifetime: Duration) -> Option<&Token> {
         let now = Utc::now();
         if let Some(token) = self.map.get(
@@ -27,6 +28,7 @@ impl Cache {
         }
     }
 
+    #[tracing::instrument(skip(self))]
     pub fn put(&mut self, scopes: &[&str], token: Token) {
         self.map.insert(
             scopes

@@ -33,7 +33,7 @@ pub struct Manager {
 }
 
 impl Manager {
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(err, skip(client))]
     pub fn from_env(client: reqwest::Client) -> Result<Self, Error> {
         Ok(Self {
             client,
@@ -44,6 +44,7 @@ impl Manager {
         })
     }
 
+    #[tracing::instrument(err, ret, skip(self))]
     pub async fn refresh(&self, scopes: &[&str], lifetime: Duration) -> Result<Token, Error> {
         let token = self.cache.read().await.get(scopes, lifetime).cloned();
         if let Some(token) = token {
