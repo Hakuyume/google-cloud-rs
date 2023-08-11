@@ -1,10 +1,23 @@
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::Display;
 use std::str::FromStr;
 
-#[derive(Clone, Copy, Debug, Deserialize)]
-#[serde(bound(deserialize = "T: FromStr, T::Err: Display"), from = "Inner<T>")]
-pub struct Reference<T>(pub T);
+pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+where
+    T: Display,
+    S: Serializer,
+{
+    Inner { value }.serialize(serializer)
+}
+
+pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    T: FromStr,
+    T::Err: Display,
+    D: Deserializer<'de>,
+{
+    Ok(Inner::deserialize(deserializer)?.value)
+}
 
 #[serde_with::serde_as]
 #[derive(Deserialize, Serialize)]
@@ -13,22 +26,4 @@ struct Inner<T> {
     #[serde(rename = "referenceValue")]
     #[serde_as(as = "serde_with::DisplayFromStr")]
     value: T,
-}
-
-impl<T> Serialize for Reference<T>
-where
-    T: Display,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Inner { value: &self.0 }.serialize(serializer)
-    }
-}
-
-impl<T> From<Inner<T>> for Reference<T> {
-    fn from(value: Inner<T>) -> Self {
-        Self(value.value)
-    }
 }
