@@ -1,7 +1,6 @@
 // https://google.aip.dev/auth/4117
 
-use super::Token;
-use crate::Error;
+use crate::{Error, Token};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_with::formats::SpaceSeparator;

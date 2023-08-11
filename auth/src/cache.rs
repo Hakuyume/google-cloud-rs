@@ -8,10 +8,6 @@ pub struct Cache {
 }
 
 impl Cache {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     #[tracing::instrument(ret, skip(self))]
     pub fn get(&self, scopes: &[&str], lifetime: Duration) -> Option<&Token> {
         let now = Utc::now();

@@ -1,9 +1,5 @@
-pub mod auth;
-
 use bytes::Bytes;
 use std::io;
-
-const SENSITIVE: &str = "***";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -24,7 +20,9 @@ pub enum Error {
 }
 
 impl Error {
-    async fn check_response(response: reqwest::Response) -> Result<reqwest::Response, Self> {
+    pub(crate) async fn check_response(
+        response: reqwest::Response,
+    ) -> Result<reqwest::Response, Self> {
         if response.status().is_success() {
             Ok(response)
         } else {

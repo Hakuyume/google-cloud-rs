@@ -1,8 +1,7 @@
 mod authorized_user;
 mod external_account;
 
-use super::Token;
-use crate::Error;
+use crate::{Error, Token};
 use serde::Deserialize;
 use std::env;
 use std::fs;

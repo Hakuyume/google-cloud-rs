@@ -1,29 +1,7 @@
-pub mod cache;
-pub mod credentials;
-
-use crate::Error;
-use chrono::{DateTime, Duration, Utc};
-use serde::Deserialize;
-use std::fmt;
+use crate::{cache, credentials, Error, Token};
+use chrono::Duration;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-
-pub const DEFAULT_SCOPES: &[&str] = &["https://www.googleapis.com/auth/cloud-platform"];
-
-#[derive(Clone, Deserialize)]
-pub struct Token {
-    pub access_token: String,
-    pub expires_at: DateTime<Utc>,
-}
-
-impl fmt::Debug for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Token")
-            .field("access_token", &crate::SENSITIVE)
-            .field("expires_at", &self.expires_at)
-            .finish()
-    }
-}
 
 #[derive(Clone)]
 pub struct Manager {
