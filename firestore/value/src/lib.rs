@@ -9,3 +9,6 @@ pub use bytes::Bytes;
 pub use integer::Integer;
 pub use reference::Reference;
 pub use string::String;
+
+#[cfg(test)]
+mod tests;
