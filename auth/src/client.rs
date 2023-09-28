@@ -4,19 +4,20 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
-pub struct Manager {
-    client: reqwest::Client,
+pub struct Client {
+    client: dispatch::Client,
     credentials: Arc<credentials::Credentials>,
     cache: Arc<RwLock<cache::Cache>>,
 }
 
-impl Manager {
+impl Client {
     #[tracing::instrument(err, skip(client))]
-    pub fn from_env(client: reqwest::Client) -> Result<Self, Error> {
+    pub fn from_env(client: dispatch::Client) -> Result<Self, Error> {
         Ok(Self {
             client,
             credentials: Arc::new(
-                credentials::Credentials::from_env()?.ok_or_else(|| Error::NoAuthProvider)?,
+                credentials::Credentials::from_env()?
+                    .ok_or_else(|| Error::TokenProviderNotFound)?,
             ),
             cache: Default::default(),
         })

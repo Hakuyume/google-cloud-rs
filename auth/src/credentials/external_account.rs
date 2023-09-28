@@ -2,18 +2,22 @@
 
 use crate::{Error, Token};
 use chrono::{DateTime, Duration, Utc};
+use http::{Method, Uri};
 use serde::{Deserialize, Serialize};
 use serde_with::formats::SpaceSeparator;
 use serde_with::StringWithSeparator;
 use tokio::fs;
 
+#[serde_with::serde_as]
 #[derive(Debug, Deserialize)]
 pub struct ExternalAccount {
     pub audience: String,
     pub subject_token_type: String,
-    pub service_account_impersonation_url: Option<String>,
+    #[serde_as(as = "Option<serde_with::DisplayFromStr>")]
+    pub service_account_impersonation_url: Option<Uri>,
     // TODO: service_account_impersonation
-    pub token_url: String,
+    #[serde_as(as = "serde_with::DisplayFromStr")]
+    pub token_url: Uri,
     pub credential_source: CredentialSource,
 }
 
@@ -30,7 +34,11 @@ pub struct File {
 
 impl ExternalAccount {
     #[tracing::instrument(err, ret, skip(client))]
-    pub async fn refresh(&self, client: &reqwest::Client, scopes: &[&str]) -> Result<Token, Error> {
+    pub async fn refresh(
+        &self,
+        client: &dispatch::Client,
+        scopes: &[&str],
+    ) -> Result<Token, Error> {
         let external_credential = match &self.credential_source {
             CredentialSource::File(source) => fs::read_to_string(&source.file).await?,
         };
@@ -58,10 +66,11 @@ impl ExternalAccount {
                 expires_in: i64,
             }
 
-            Error::check_response(
-                client
-                    .post(&self.token_url)
-                    .json(&Request {
+            client
+                .send::<_, dispatch::Json<Response>>(
+                    Method::POST,
+                    self.token_url.clone(),
+                    dispatch::Json(Request {
                         grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
                         audience: &self.audience,
                         requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
@@ -73,13 +82,10 @@ impl ExternalAccount {
                         }
                         .into(),
                         subject_token: &external_credential,
-                    })
-                    .send()
-                    .await?,
-            )
-            .await?
-            .json::<Response>()
-            .await?
+                    }),
+                    None,
+                )
+                .await?
         };
 
         if let Some(service_account_impersonation_url) = &self.service_account_impersonation_url {
@@ -102,31 +108,28 @@ impl ExternalAccount {
                     expire_time: DateTime<Utc>,
                 }
 
-                Error::check_response(
-                    client
-                        .post(service_account_impersonation_url)
-                        .bearer_auth(&response.access_token)
-                        .json(&Request {
+                client
+                    .send::<_, dispatch::Json<Response>>(
+                        Method::POST,
+                        service_account_impersonation_url.clone(),
+                        dispatch::Json(Request {
                             delegates: None,
                             scope: scopes,
                             lifetime: Some("3600s"),
-                        })
-                        .send()
-                        .await?,
-                )
-                .await?
-                .json::<Response>()
-                .await?
+                        }),
+                        Some(&response.0.access_token),
+                    )
+                    .await?
             };
 
             Ok(Token {
-                access_token: response.access_token,
-                expires_at: response.expire_time,
+                access_token: response.0.access_token,
+                expires_at: response.0.expire_time,
             })
         } else {
             Ok(Token {
-                access_token: response.access_token,
-                expires_at: now + Duration::seconds(response.expires_in),
+                access_token: response.0.access_token,
+                expires_at: now + Duration::seconds(response.0.expires_in),
             })
         }
     }

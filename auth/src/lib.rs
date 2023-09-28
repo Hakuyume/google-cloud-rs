@@ -1,11 +1,11 @@
 mod cache;
+mod client;
 mod credentials;
 mod error;
-mod manager;
 mod token;
 
+pub use client::Client;
 pub use error::Error;
-pub use manager::Manager;
 pub use token::Token;
 
 pub const DEFAULT_SCOPES: &[&str] = &["https://www.googleapis.com/auth/cloud-platform"];

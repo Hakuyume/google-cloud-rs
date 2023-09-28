@@ -26,7 +26,11 @@ impl Credentials {
     }
 
     #[tracing::instrument(err, ret, skip(client))]
-    pub async fn refresh(&self, client: &reqwest::Client, scopes: &[&str]) -> Result<Token, Error> {
+    pub async fn refresh(
+        &self,
+        client: &dispatch::Client,
+        scopes: &[&str],
+    ) -> Result<Token, Error> {
         match &self {
             Self::AuthorizedUser(credentials) => credentials.refresh(client, scopes).await,
             Self::ExternalAccount(credentials) => credentials.refresh(client, scopes).await,

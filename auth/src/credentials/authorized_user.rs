@@ -2,6 +2,7 @@
 
 use crate::{Error, Token};
 use chrono::{Duration, Utc};
+use http::Method;
 use serde::{Deserialize, Serialize};
 use serde_with::formats::SpaceSeparator;
 use serde_with::StringWithSeparator;
@@ -26,7 +27,11 @@ impl fmt::Debug for AuthorizedUser {
 
 impl AuthorizedUser {
     #[tracing::instrument(err, ret, skip(client))]
-    pub async fn refresh(&self, client: &reqwest::Client, scopes: &[&str]) -> Result<Token, Error> {
+    pub async fn refresh(
+        &self,
+        client: &dispatch::Client,
+        scopes: &[&str],
+    ) -> Result<Token, Error> {
         let now = Utc::now();
         let response = {
             #[serde_with::serde_as]
@@ -46,26 +51,24 @@ impl AuthorizedUser {
                 expires_in: i64,
             }
 
-            Error::check_response(
-                client
-                    .post("https://oauth2.googleapis.com/token")
-                    .json(&Request {
+            client
+                .send::<_, dispatch::Json<Response>>(
+                    Method::POST,
+                    "https://oauth2.googleapis.com/token".parse().unwrap(),
+                    dispatch::Json(Request {
                         grant_type: "refresh_token",
                         client_id: &self.client_id,
                         client_secret: &self.client_secret,
                         refresh_token: &self.refresh_token,
                         scope: scopes.into(),
-                    })
-                    .send()
-                    .await?,
-            )
-            .await?
-            .json::<Response>()
-            .await?
+                    }),
+                    None,
+                )
+                .await?
         };
         Ok(Token {
-            access_token: response.access_token,
-            expires_at: now + Duration::seconds(response.expires_in),
+            access_token: response.0.access_token,
+            expires_at: now + Duration::seconds(response.0.expires_in),
         })
     }
 }
