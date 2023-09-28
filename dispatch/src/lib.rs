@@ -22,16 +22,11 @@ pub enum Error {
     Json(#[from] serde_json::Error),
 }
 
+type BoxBody = UnsyncBoxBody<Bytes, BoxError>;
+
 #[derive(Clone)]
 pub struct Client(
-    Buffer<
-        BoxService<
-            Request<UnsyncBoxBody<Bytes, BoxError>>,
-            Response<UnsyncBoxBody<Bytes, BoxError>>,
-            BoxError,
-        >,
-        Request<UnsyncBoxBody<Bytes, BoxError>>,
-    >,
+    Buffer<BoxService<Request<BoxBody>, Response<BoxBody>, BoxError>, Request<BoxBody>>,
 );
 
 impl Client {
@@ -40,14 +35,14 @@ impl Client {
         S: Service<Request<T>, Response = Response<U>> + Send + 'static,
         BoxError: From<S::Error>,
         S::Future: Send,
-        T: From<UnsyncBoxBody<Bytes, BoxError>> + 'static,
+        T: From<BoxBody> + 'static,
         U: Body<Data = Bytes> + Send + 'static,
         BoxError: From<U::Error>,
     {
         Self(Buffer::new(
             BoxService::new(
                 service
-                    .map_request(|request: Request<UnsyncBoxBody<Bytes, BoxError>>| {
+                    .map_request(|request: Request<BoxBody>| {
                         let (parts, body) = request.into_parts();
                         Request::from_parts(parts, T::from(body))
                     })
@@ -63,7 +58,7 @@ impl Client {
 
     pub fn hyper() -> Self {
         Self::new(
-            hyper::Client::builder().build::<_, UnsyncBoxBody<Bytes, BoxError>>(
+            hyper::Client::builder().build::<_, BoxBody>(
                 hyper_rustls::HttpsConnectorBuilder::new()
                     .with_webpki_roots()
                     .https_only()
@@ -117,24 +112,24 @@ impl Client {
 
 #[async_trait::async_trait]
 pub trait IntoBody {
-    async fn into_body(self) -> Result<UnsyncBoxBody<Bytes, BoxError>, Error>;
+    async fn into_body(self) -> Result<BoxBody, Error>;
 }
 
 #[async_trait::async_trait]
 pub trait FromBody: Sized {
-    async fn from_body(body: UnsyncBoxBody<Bytes, BoxError>) -> Result<Self, Error>;
+    async fn from_body(body: BoxBody) -> Result<Self, Error>;
 }
 
 #[async_trait::async_trait]
 impl IntoBody for Bytes {
-    async fn into_body(self) -> Result<UnsyncBoxBody<Bytes, BoxError>, Error> {
+    async fn into_body(self) -> Result<BoxBody, Error> {
         Ok(Full::new(self).map_err(BoxError::from).boxed_unsync())
     }
 }
 
 #[async_trait::async_trait]
 impl FromBody for Bytes {
-    async fn from_body(body: UnsyncBoxBody<Bytes, BoxError>) -> Result<Self, Error> {
+    async fn from_body(body: BoxBody) -> Result<Self, Error> {
         let mut body = pin::pin!(body);
         let mut data = BytesMut::new();
         while let Some(chunk) = body.data().await.transpose().map_err(Error::Service)? {
@@ -151,7 +146,7 @@ impl<T> IntoBody for Json<T>
 where
     T: Serialize + Send,
 {
-    async fn into_body(self) -> Result<UnsyncBoxBody<Bytes, BoxError>, Error> {
+    async fn into_body(self) -> Result<BoxBody, Error> {
         let body = serde_json::to_vec(&self.0)?;
         Bytes::from(body).into_body().await
     }
@@ -162,7 +157,7 @@ impl<T> FromBody for Json<T>
 where
     T: for<'de> Deserialize<'de> + Send,
 {
-    async fn from_body(body: UnsyncBoxBody<Bytes, BoxError>) -> Result<Self, Error> {
+    async fn from_body(body: BoxBody) -> Result<Self, Error> {
         Ok(Self(serde_json::from_slice(
             &Bytes::from_body(body).await?,
         )?))
