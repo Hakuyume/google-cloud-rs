@@ -86,7 +86,7 @@ impl Client {
             .and_then(move |body| {
                 let mut request = Request::builder()
                     .method(method)
-                    .uri(uri.clone())
+                    .uri(uri)
                     .body(body)
                     .unwrap();
                 if let Some(bearer) = bearer {
