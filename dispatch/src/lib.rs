@@ -1,13 +1,13 @@
 use bytes::{Bytes, BytesMut};
 use futures::future::BoxFuture;
-use futures::{FutureExt, TryFutureExt};
+use futures::{FutureExt, TryFutureExt, TryStreamExt};
 use headers::{Authorization, HeaderMapExt};
 use http::{Method, Request, Response, StatusCode, Uri};
 use http_body::combinators::UnsyncBoxBody;
 use http_body::{Body, Full};
 use serde::{Deserialize, Serialize};
 use std::future::{self, Future};
-use std::pin;
+use std::pin::Pin;
 use tower::buffer::Buffer;
 use tower::util::BoxService;
 use tower::{BoxError, Service, ServiceExt};
@@ -118,9 +118,8 @@ pub trait IntoBody {
     fn into_body(self) -> BoxFuture<'static, Result<BoxBody, Error>>;
 }
 
-#[async_trait::async_trait]
 pub trait FromBody: Sized {
-    async fn from_body(body: BoxBody) -> Result<Self, Error>;
+    fn from_body(body: BoxBody) -> BoxFuture<'static, Result<Self, Error>>;
 }
 
 impl IntoBody for Bytes {
@@ -129,15 +128,13 @@ impl IntoBody for Bytes {
     }
 }
 
-#[async_trait::async_trait]
 impl FromBody for Bytes {
-    async fn from_body(body: BoxBody) -> Result<Self, Error> {
-        let mut body = pin::pin!(body);
-        let mut data = BytesMut::new();
-        while let Some(chunk) = body.data().await.transpose().map_err(Error::Service)? {
-            data.extend_from_slice(&chunk);
-        }
-        Ok(data.freeze())
+    fn from_body(mut body: BoxBody) -> BoxFuture<'static, Result<Self, Error>> {
+        futures::stream::poll_fn(move |cx| Pin::new(&mut body).poll_data(cx))
+            .try_collect::<BytesMut>()
+            .map_ok(BytesMut::freeze)
+            .map_err(Error::Service)
+            .boxed()
     }
 }
 
@@ -158,14 +155,13 @@ where
     }
 }
 
-#[async_trait::async_trait]
 impl<T> FromBody for Json<T>
 where
     T: for<'de> Deserialize<'de> + Send,
 {
-    async fn from_body(body: BoxBody) -> Result<Self, Error> {
-        Ok(Self(serde_json::from_slice(
-            &Bytes::from_body(body).await?,
-        )?))
+    fn from_body(body: BoxBody) -> BoxFuture<'static, Result<Self, Error>> {
+        Bytes::from_body(body)
+            .map(|body| Ok(Self(serde_json::from_slice(&body?)?)))
+            .boxed()
     }
 }
