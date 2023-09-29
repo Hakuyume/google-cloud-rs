@@ -65,10 +65,11 @@ impl AuthorizedUser {
                     None,
                 )
                 .await?
+                .0
         };
         Ok(Token {
-            access_token: response.0.access_token,
-            expires_at: now + Duration::seconds(response.0.expires_in),
+            access_token: response.access_token,
+            expires_at: now + Duration::seconds(response.expires_in),
         })
     }
 }

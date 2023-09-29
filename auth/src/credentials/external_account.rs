@@ -86,6 +86,7 @@ impl ExternalAccount {
                     None,
                 )
                 .await?
+                .0
         };
 
         if let Some(service_account_impersonation_url) = &self.service_account_impersonation_url {
@@ -117,19 +118,20 @@ impl ExternalAccount {
                             scope: scopes,
                             lifetime: Some("3600s"),
                         }),
-                        Some(&response.0.access_token),
+                        Some(&response.access_token),
                     )
                     .await?
+                    .0
             };
 
             Ok(Token {
-                access_token: response.0.access_token,
-                expires_at: response.0.expire_time,
+                access_token: response.access_token,
+                expires_at: response.expire_time,
             })
         } else {
             Ok(Token {
-                access_token: response.0.access_token,
-                expires_at: now + Duration::seconds(response.0.expires_in),
+                access_token: response.access_token,
+                expires_at: now + Duration::seconds(response.expires_in),
             })
         }
     }
