@@ -1,9 +1,12 @@
 use bytes::{Bytes, BytesMut};
+use futures::future::BoxFuture;
+use futures::{FutureExt, TryFutureExt};
 use headers::{Authorization, HeaderMapExt};
-use http::{Method, Request, Response, Uri};
+use http::{Method, Request, Response, StatusCode, Uri};
 use http_body::combinators::UnsyncBoxBody;
 use http_body::{Body, Full};
 use serde::{Deserialize, Serialize};
+use std::future::{self, Future};
 use std::pin;
 use tower::buffer::Buffer;
 use tower::util::BoxService;
@@ -14,10 +17,7 @@ pub enum Error {
     #[error(transparent)]
     Service(BoxError),
     #[error("[{status:?}] {body:?}")]
-    Http {
-        status: http::StatusCode,
-        body: Bytes,
-    },
+    Http { status: StatusCode, body: Bytes },
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 }
@@ -68,51 +68,54 @@ impl Client {
         )
     }
 
-    pub async fn send<T, U>(
+    pub fn send<T, U>(
         &self,
         method: Method,
         uri: Uri,
         body: T,
         bearer: Option<&str>,
-    ) -> Result<U, Error>
+    ) -> impl Future<Output = Result<U, Error>> + Send + 'static
     where
         T: IntoBody,
-        U: FromBody,
+        U: FromBody + 'static,
     {
-        let body = body.into_body().await?;
+        let service = self.0.clone();
+        let bearer = bearer.map(Authorization::bearer).transpose().unwrap();
 
-        let mut request = Request::builder()
-            .method(method)
-            .uri(uri.clone())
-            .body(body)
-            .unwrap();
-        if let Some(bearer) = bearer {
-            request
-                .headers_mut()
-                .typed_insert(Authorization::bearer(bearer).unwrap());
-        }
+        body.into_body()
+            .and_then(move |body| {
+                let mut request = Request::builder()
+                    .method(method)
+                    .uri(uri.clone())
+                    .body(body)
+                    .unwrap();
+                if let Some(bearer) = bearer {
+                    request.headers_mut().typed_insert(bearer);
+                }
 
-        let mut service = self.0.clone();
-        futures::future::poll_fn(|cx| service.poll_ready(cx))
-            .await
-            .map_err(Error::Service)?;
-        let response = service.call(request).await.map_err(Error::Service)?;
-
-        let (parts, body) = response.into_parts();
-        if parts.status.is_success() {
-            U::from_body(body).await
-        } else {
-            Err(Error::Http {
-                status: parts.status,
-                body: Bytes::from_body(body).await?,
+                service.oneshot(request).map_err(Error::Service)
             })
-        }
+            .and_then(|response| {
+                let (parts, body) = response.into_parts();
+                if parts.status.is_success() {
+                    U::from_body(body).boxed()
+                } else {
+                    Bytes::from_body(body)
+                        .map(move |body| match body {
+                            Ok(body) => Err(Error::Http {
+                                status: parts.status,
+                                body,
+                            }),
+                            Err(e) => Err(e),
+                        })
+                        .boxed()
+                }
+            })
     }
 }
 
-#[async_trait::async_trait]
 pub trait IntoBody {
-    async fn into_body(self) -> Result<BoxBody, Error>;
+    fn into_body(self) -> BoxFuture<'static, Result<BoxBody, Error>>;
 }
 
 #[async_trait::async_trait]
@@ -120,10 +123,9 @@ pub trait FromBody: Sized {
     async fn from_body(body: BoxBody) -> Result<Self, Error>;
 }
 
-#[async_trait::async_trait]
 impl IntoBody for Bytes {
-    async fn into_body(self) -> Result<BoxBody, Error> {
-        Ok(Full::new(self).map_err(BoxError::from).boxed_unsync())
+    fn into_body(self) -> BoxFuture<'static, Result<BoxBody, Error>> {
+        futures::future::ok(Full::new(self).map_err(BoxError::from).boxed_unsync()).boxed()
     }
 }
 
@@ -141,14 +143,18 @@ impl FromBody for Bytes {
 
 pub struct Json<T>(pub T);
 
-#[async_trait::async_trait]
 impl<T> IntoBody for Json<T>
 where
     T: Serialize + Send,
 {
-    async fn into_body(self) -> Result<BoxBody, Error> {
-        let body = serde_json::to_vec(&self.0)?;
-        Bytes::from(body).into_body().await
+    fn into_body(self) -> BoxFuture<'static, Result<BoxBody, Error>> {
+        future::ready(
+            serde_json::to_vec(&self.0)
+                .map(Bytes::from)
+                .map_err(Error::from),
+        )
+        .and_then(IntoBody::into_body)
+        .boxed()
     }
 }
 
