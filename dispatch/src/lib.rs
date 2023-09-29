@@ -1,6 +1,7 @@
 use bytes::{Bytes, BytesMut};
 use headers::{Authorization, HeaderMapExt};
 use http::{Method, Request, Response, Uri};
+use http_body::combinators::UnsyncBoxBody;
 use http_body::{Body, Full};
 use serde::{Deserialize, Serialize};
 use std::pin;
@@ -21,7 +22,7 @@ pub enum Error {
     Json(#[from] serde_json::Error),
 }
 
-type BoxBody = http_body::combinators::BoxBody<Bytes, BoxError>;
+type BoxBody = UnsyncBoxBody<Bytes, BoxError>;
 
 #[derive(Clone)]
 pub struct Client(
@@ -35,7 +36,7 @@ impl Client {
         BoxError: From<S::Error>,
         S::Future: Send,
         T: From<BoxBody> + 'static,
-        U: Body<Data = Bytes> + Send + Sync + 'static,
+        U: Body<Data = Bytes> + Send + 'static,
         BoxError: From<U::Error>,
     {
         Self(Buffer::new(
@@ -47,7 +48,7 @@ impl Client {
                     })
                     .map_response(|response| {
                         let (parts, body) = response.into_parts();
-                        Response::from_parts(parts, body.map_err(BoxError::from).boxed())
+                        Response::from_parts(parts, body.map_err(BoxError::from).boxed_unsync())
                     })
                     .map_err(BoxError::from),
             ),
@@ -122,7 +123,7 @@ pub trait FromBody: Sized {
 #[async_trait::async_trait]
 impl IntoBody for Bytes {
     async fn into_body(self) -> Result<BoxBody, Error> {
-        Ok(Full::new(self).map_err(BoxError::from).boxed())
+        Ok(Full::new(self).map_err(BoxError::from).boxed_unsync())
     }
 }
 
