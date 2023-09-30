@@ -2,7 +2,7 @@
 
 use crate::{Error, Token};
 use chrono::{DateTime, Duration, Utc};
-use http::{Method, Uri};
+use http_dispatch::http::{Method, Uri};
 use serde::{Deserialize, Serialize};
 use serde_with::formats::SpaceSeparator;
 use serde_with::StringWithSeparator;
@@ -33,10 +33,10 @@ pub struct File {
 }
 
 impl ExternalAccount {
-    #[tracing::instrument(err, ret, skip(client))]
+    #[tracing::instrument(err, level = "debug", ret, skip(client))]
     pub async fn refresh(
         &self,
-        client: &dispatch::Client,
+        client: &http_dispatch::Client,
         scopes: &[&str],
     ) -> Result<Token, Error> {
         let external_credential = match &self.credential_source {
@@ -67,10 +67,10 @@ impl ExternalAccount {
             }
 
             client
-                .send::<_, dispatch::Json<Response>>(
+                .send::<_, http_dispatch::Json<Response>>((
                     Method::POST,
                     self.token_url.clone(),
-                    dispatch::Json(Request {
+                    http_dispatch::Json(Request {
                         grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
                         audience: &self.audience,
                         requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
@@ -83,8 +83,7 @@ impl ExternalAccount {
                         .into(),
                         subject_token: &external_credential,
                     }),
-                    None,
-                )
+                ))
                 .await?
                 .0
         };
@@ -110,16 +109,19 @@ impl ExternalAccount {
                 }
 
                 client
-                    .send::<_, dispatch::Json<Response>>(
+                    .send::<_, http_dispatch::Json<Response>>((
                         Method::POST,
                         service_account_impersonation_url.clone(),
-                        dispatch::Json(Request {
+                        http_dispatch::TypedHeader(
+                            http_dispatch::headers::Authorization::bearer(&response.access_token)
+                                .unwrap(),
+                        ),
+                        http_dispatch::Json(Request {
                             delegates: None,
                             scope: scopes,
                             lifetime: Some("3600s"),
                         }),
-                        Some(&response.access_token),
-                    )
+                    ))
                     .await?
                     .0
             };

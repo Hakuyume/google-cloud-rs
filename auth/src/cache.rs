@@ -8,7 +8,7 @@ pub struct Cache {
 }
 
 impl Cache {
-    #[tracing::instrument(ret, skip(self))]
+    #[tracing::instrument(level = "debug", ret, skip(self))]
     pub fn get(&self, scopes: &[&str], lifetime: Duration) -> Option<&Token> {
         let now = Utc::now();
         if let Some(token) = self
@@ -21,7 +21,7 @@ impl Cache {
         }
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(level = "debug", skip(self))]
     pub fn put(&mut self, scopes: &[&str], token: Token) {
         self.map.insert(
             scopes.iter().copied().map(Box::from).collect::<Box<_>>(),

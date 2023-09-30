@@ -2,7 +2,7 @@
 
 use crate::{Error, Token};
 use chrono::{Duration, Utc};
-use http::Method;
+use http_dispatch::http::{Method, Uri};
 use serde::{Deserialize, Serialize};
 use serde_with::formats::SpaceSeparator;
 use serde_with::StringWithSeparator;
@@ -26,10 +26,10 @@ impl fmt::Debug for AuthorizedUser {
 }
 
 impl AuthorizedUser {
-    #[tracing::instrument(err, ret, skip(client))]
+    #[tracing::instrument(err, level = "debug", ret, skip(client))]
     pub async fn refresh(
         &self,
-        client: &dispatch::Client,
+        client: &http_dispatch::Client,
         scopes: &[&str],
     ) -> Result<Token, Error> {
         let now = Utc::now();
@@ -52,18 +52,17 @@ impl AuthorizedUser {
             }
 
             client
-                .send::<_, dispatch::Json<Response>>(
+                .send::<(_, Uri, _), http_dispatch::Json<Response>>((
                     Method::POST,
                     "https://oauth2.googleapis.com/token".parse().unwrap(),
-                    dispatch::Json(Request {
+                    http_dispatch::Json(Request {
                         grant_type: "refresh_token",
                         client_id: &self.client_id,
                         client_secret: &self.client_secret,
                         refresh_token: &self.refresh_token,
                         scope: scopes.into(),
                     }),
-                    None,
-                )
+                ))
                 .await?
                 .0
         };

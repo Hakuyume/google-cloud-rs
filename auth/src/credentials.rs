@@ -14,7 +14,7 @@ pub enum Credentials {
 }
 
 impl Credentials {
-    #[tracing::instrument(err, ret)]
+    #[tracing::instrument(err, level = "debug", ret)]
     pub fn from_env() -> Result<Option<Self>, Error> {
         if let Ok(path) = env::var("GOOGLE_APPLICATION_CREDENTIALS") {
             tracing::debug!("loading credentials from {}", path);
@@ -25,10 +25,10 @@ impl Credentials {
         }
     }
 
-    #[tracing::instrument(err, ret, skip(client))]
+    #[tracing::instrument(err, level = "debug", ret, skip(client))]
     pub async fn refresh(
         &self,
-        client: &dispatch::Client,
+        client: &http_dispatch::Client,
         scopes: &[&str],
     ) -> Result<Token, Error> {
         match &self {

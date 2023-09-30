@@ -7,16 +7,16 @@ edition = "2021"
 
 [dependencies]
 chrono.workspace = true
-dispatch = { path = "../dispatch" }
-http.workspace = true
+http-dispatch.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_with.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["fs"] }
+tokio = { workspace = true, features = ["fs", "sync"] }
 tracing.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
+http-dispatch = { workspace = true, features = ["hyper"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing-subscriber.workspace = true

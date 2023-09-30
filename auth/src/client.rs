@@ -5,14 +5,14 @@ use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct Client {
-    client: dispatch::Client,
+    client: http_dispatch::Client,
     credentials: Arc<credentials::Credentials>,
     cache: Arc<RwLock<cache::Cache>>,
 }
 
 impl Client {
-    #[tracing::instrument(err, skip(client))]
-    pub fn from_env(client: dispatch::Client) -> Result<Self, Error> {
+    #[tracing::instrument(err, level = "debug", skip(client))]
+    pub fn from_env(client: http_dispatch::Client) -> Result<Self, Error> {
         Ok(Self {
             client,
             credentials: Arc::new(
@@ -23,7 +23,7 @@ impl Client {
         })
     }
 
-    #[tracing::instrument(err, ret, skip(self))]
+    #[tracing::instrument(err, level = "debug", ret, skip(self))]
     pub async fn refresh(&self, scopes: &[&str], lifetime: Duration) -> Result<Token, Error> {
         let token = self.cache.read().await.get(scopes, lifetime).cloned();
         if let Some(token) = token {
